@@ -75,7 +75,7 @@ impl super::Cpu {
         let Vx: u8 = ((self.opcode & 0x0F00) >> 8u8) as u8;
         let byte: u8 = (self.opcode & 0x00FF) as u8;
 
-        self.registers[Vx as usize] += byte;
+        self.registers[Vx as usize] = self.registers[Vx as usize].wrapping_add(byte);
     }
     
     // 8xy0 - LD Vx, Vy
@@ -115,28 +115,22 @@ impl super::Cpu {
         let Vx: u8 = ((self.opcode & 0x0F00) >> 8u8) as u8;
         let Vy: u8 = ((self.opcode & 0x0f0) >> 4u8) as u8;
 
-        let sum: u16 = self.registers[Vx as usize] as u16 + self.registers[Vy as usize] as u16;
+        let (result, carry) = self.registers[Vx as usize].overflowing_add(self.registers[Vy as usize]);
 
-        if sum > 255u16{
-            self.registers[0xF_usize] = 1;
-        }else{
-            self.registers[0xF_usize] = 0; 
-        }
+        self.registers[Vx as usize] = result;
+        self.registers[0xF] = if carry { 1 } else { 0 };
 
-        self.registers[Vx as usize] = (sum & 0xFFu16) as u8;
     }
 
     // 8xy5 - SUB Vx, Vy 
     pub fn op_8xy5(&mut self){
         let Vx: u8 = ((self.opcode & 0x0F00) >> 8u8) as u8;
         let Vy: u8 = ((self.opcode & 0x0f0) >> 4u8) as u8;
-        
-        if self.registers[Vx as usize] > self.registers[Vy as usize]{
-            self.registers[0xF_usize] = 1;
-        }else{
-            self.registers[0xF_usize] = 0;
-        }
-        self.registers[Vx as usize] -= self.registers[Vy as usize];
+       
+        let (result, borrow) = self.registers[Vx as usize].overflowing_sub(self.registers[Vy as usize]);
+
+        self.registers[Vx as usize] = result;
+        self.registers[0xF] = if !borrow { 1 } else { 0 };
     }
 
     // 8xy6 - SHR Vx
@@ -154,14 +148,12 @@ impl super::Cpu {
         let Vy: u8 = ((self.opcode & 0x0f0) >> 4u8) as u8;
 
 
-        if self.registers[Vy as usize] > self.registers[Vx as usize]{
-            self.registers[0xF_usize] = 1;
-        }else{
-            self.registers[0xF_usize] = 0; 
-        }
 
-        self.registers[Vx as usize] = self.registers[Vy as usize] - self.registers[Vx as usize];
-    }
+        let (result, borrow) = self.registers[Vy as usize].overflowing_sub(self.registers[Vx as usize]);
+
+        self.registers[Vx as usize] = result;
+        self.registers[0xF] = if !borrow { 1 } else { 0 };
+   }
 
     // 8xyE - SHL Vx {, Vy}
     pub fn op_8xye(&mut self){
@@ -192,7 +184,7 @@ impl super::Cpu {
 
     // Bnnn - JP V0, addr 
     pub fn op_bnnn(&mut self){
-        let address: u16 = self.opcode & 0x0FF0;
+        let address: u16 = self.opcode & 0x0FFF;
 
         self.program_counter = self.registers[0] as u16 + address;
     }
@@ -225,14 +217,14 @@ impl super::Cpu {
 
         self.registers[0xF_usize] = 0;
 
-        for row in 0..(height as u64){
-            let sprite_byte = self.memory[(self.index_register as u64 + row) as usize];
+        for row in 0..(height as u32){
+            let sprite_byte = self.memory[(self.index_register + row as u16) as usize];
 
-            for col in 0..8u64{
+            for col in 0..8u32{
                 let sprite_pixel = (sprite_byte & (0x80 >> col)) != 0;
 
-                let x = (x_pos as u64 + col) % 64;
-                let y = (y_pos as u64 + row) % 32;
+                let x = (x_pos as u32 + col) % 64;
+                let y = (y_pos as u32 + row) % 32;
                 let index = y * 64 + x;
 
                 if sprite_pixel {
@@ -310,7 +302,7 @@ impl super::Cpu {
     pub fn op_fx1e(&mut self) {
         let Vx: u8 = ((self.opcode & 0x0F00) >> 8) as u8;
 
-        self.index_register += self.registers[Vx as usize] as u16;
+        self.index_register = self.index_register.wrapping_add(self.registers[Vx as usize] as u16);
     }
 
     // Fx29 - LD F, Vx
@@ -348,6 +340,8 @@ impl super::Cpu {
         for reg in 0..=Vx {
             self.memory[i + reg as usize] = self.registers[reg as usize];
         }
+
+        self.index_register += (Vx + 1u8) as u16;
     }
 
     // Fx65 - LD Vx, [I]
@@ -358,6 +352,8 @@ impl super::Cpu {
         for reg in 0..=Vx {
             self.registers[reg as usize] = self.memory[i + reg as usize];
         }
+
+        self.index_register += (Vx + 1u8) as u16;
     }
 }
 

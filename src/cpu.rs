@@ -28,7 +28,7 @@ pub struct Cpu{
     rng_engine:     ThreadRng,
     opcode:         u16,
 
-    draw_flag:      bool
+    pub draw_flag:  bool
 }
 
 impl Cpu{
@@ -63,7 +63,7 @@ impl Cpu{
     }
 
 
-    pub fn load_rom(&mut self, file_name: String){
+    pub fn load_rom(&mut self, file_name: &String){
         let file = File::open(file_name).unwrap();
         let reader = BufReader::new(file);
         
@@ -153,20 +153,22 @@ impl Cpu{
                 // println!("Unknown opcode: {:#06X}", self.opcode);
             }
         }
-    
+    }
 
-        
-        if self.delay_timer > 0{
+    pub fn tick_timers(&mut self) {
+        if self.delay_timer > 0 {
             self.delay_timer -= 1;
         }
 
-        if self.sound_timer > 0{
+        if self.sound_timer > 0 {
             self.sound_timer -= 1;
         }
     }
 
     pub fn is_pixel_on_at(&self, indx: usize) -> bool{
-        return self.vram[indx];
+        self.vram[indx]
     }
+
+    
 }
 

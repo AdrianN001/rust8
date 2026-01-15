@@ -23,7 +23,6 @@ impl super::Cpu{
             Keycode::C    => self.input_keys[0xB_usize] = true,
             Keycode::V    => self.input_keys[0xF_usize] = true,
             _ => {
-                
             }
         }
     }
